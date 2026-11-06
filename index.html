@@ -1,1 +1,196 @@
 
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Roleta do Alle</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#090909;color:#f7e5ae;font-family:Arial,sans-serif;text-align:center}
+header{padding:24px 10px;background:#111;border-bottom:2px solid #c99b37}
+h1{margin:0;color:#e8bd58;letter-spacing:3px;font-size:30px}
+.sub{color:#aaa;font-size:12px;letter-spacing:2px;margin-top:7px}
+main{max-width:850px;margin:auto;padding:18px}
+.panel{background:#151515;border:1px solid #806025;border-radius:14px;padding:16px;margin:15px 0}
+.balance{font-size:14px;color:#bbb}
+#saldo{font-size:30px;color:#f1c65c;font-weight:bold;margin:8px}
+.wheel-wrap{width:270px;height:270px;margin:18px auto;position:relative}
+canvas{width:100%;height:100%;transition:transform 4s cubic-bezier(.12,.75,.15,1)}
+.pointer{position:absolute;top:-5px;left:50%;transform:translateX(-50%);z-index:2;color:#f5cf69;font-size:30px}
+button{border:0;border-radius:8px;padding:12px 16px;margin:5px;background:#bd9136;color:#111;font-weight:bold;font-size:14px;cursor:pointer}
+button:disabled{opacity:.4}
+button.secondary{background:#292929;color:#f5d88c;border:1px solid #806025}
+input,select{padding:12px;border-radius:7px;border:1px solid #8c6a2d;background:#222;color:white;margin:5px;max-width:100%}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:12px auto;max-width:510px}
+.cell{padding:12px 2px;border-radius:5px;font-weight:bold;color:white}
+.red{background:#b5212c}.black{background:#292929;border:1px solid #777}.green{background:#087b45}
+.cell.selected{outline:3px solid #f3cd66;transform:scale(.96)}
+.actions{display:flex;justify-content:center;flex-wrap:wrap;gap:5px}
+#resultado{font-size:20px;font-weight:bold;min-height:28px;color:#f5cf69}
+#historico{display:flex;justify-content:center;flex-wrap:wrap;gap:6px}
+.ball{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:white;font-weight:bold}
+.note{font-size:11px;color:#888;line-height:1.5}
+</style>
+</head>
+<body>
+<header>
+<h1>ROLETA DO ALLE</h1>
+<div class="sub">SUA EXPERIÊNCIA DE ROLETА</div>
+</header>
+<main>
+<div class="panel">
+<div class="balance">SALDO DEMONSTRATIVO</div>
+<div id="saldo">R$ 50,00</div>
+<div class="note">Créditos fictícios para entretenimento. Sem dinheiro real.</div>
+</div>
+
+<div class="panel">
+<div class="pointer">▼</div>
+<div class="wheel-wrap"><canvas id="wheel" width="500" height="500"></canvas></div>
+<div id="resultado">Escolha sua aposta!</div>
+<button id="girar" onclick="girar()">GIRAR ROLETA</button>
+</div>
+
+<div class="panel">
+<h3>ESCOLHA SUA APOSTA</h3>
+<div class="grid" id="numeros"></div>
+<div class="actions">
+<button class="secondary" onclick="selecionar('red')">🔴 Vermelho</button>
+<button class="secondary" onclick="selecionar('black')">⚫ Preto</button>
+<button class="secondary" onclick="selecionar('even')">Par</button>
+<button class="secondary" onclick="selecionar('odd')">Ímpar</button>
+<button class="secondary" onclick="selecionar('low')">1–18</button>
+<button class="secondary" onclick="selecionar('high')">19–36</button>
+</div>
+<p id="escolha">Nenhuma aposta selecionada</p>
+<label>Valor da aposta fictícia:</label><br>
+<input type="number" id="valor" value="5" min="1" step="1">
+<br>
+<button onclick="apostar()">CONFIRMAR APOSTA</button>
+<button class="secondary" onclick="reiniciar()">REINICIAR SALDO</button>
+</div>
+
+<div class="panel">
+<h3>ÚLTIMOS RESULTADOS</h3>
+<div id="historico">Nenhum giro ainda</div>
+</div>
+<p class="note">Roleta demonstrativa com resultados aleatórios. Não representa uma plataforma de apostas reais.</p>
+</main>
+
+<script>
+const vermelho=[1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36];
+const ordem=[0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,5,24,16,33,1,20,14,31,9,22,18,29,7,28,12,35,3,26];
+let saldo=50,selecionada=null,valorAposta=0,bloqueado=false,rotacao=0,historico=[];
+const canvas=document.getElementById('wheel');
+const ctx=canvas.getContext('2d');
+
+function cor(n){return n===0?'green':vermelho.includes(n)?'red':'black'}
+function desenhar(){
+ const c=250,r=230,passo=2*Math.PI/37;
+ ordem.forEach((n,i)=>{
+  let a=-Math.PI/2+i*passo;
+  ctx.beginPath();ctx.moveTo(c,c);
+  ctx.arc(c,c,r,a,a+passo);ctx.closePath();
+  ctx.fillStyle=cor(n)==='red'?'#b5212c':cor(n)==='green'?'#087b45':'#222';
+  ctx.fill();ctx.strokeStyle='#d4ad56';ctx.lineWidth=2;ctx.stroke();
+  ctx.save();ctx.translate(c,c);ctx.rotate(a+passo/2);
+  ctx.fillStyle='white';ctx.font='bold 17px Arial';
+  ctx.textAlign='right';ctx.fillText(n,r-17,6);ctx.restore();
+ });
+ ctx.beginPath();ctx.arc(c,c,55,0,Math.PI*2);
+ ctx.fillStyle='#b58a35';ctx.fill();ctx.strokeStyle='#f8d77c';ctx.lineWidth=5;ctx.stroke();
+ ctx.fillStyle='#17120a';ctx.font='bold 18px Arial';ctx.textAlign='center';
+ ctx.fillText('ALLE',c,c+6);
+}
+function criarNumeros(){
+ const box=document.getElementById('numeros');
+ [0,...Array.from({length:36},(_,i)=>i+1)].forEach(n=>{
+  let b=document.createElement('button');
+  b.className='cell '+cor(n);
+  b.textContent=n;
+  b.onclick=()=>selecionar(n);
+  b.id='n'+n;
+  box.appendChild(b);
+ });
+}
+function atualizar(){
+ document.getElementById('saldo').textContent=saldo.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+}
+function selecionar(tipo){
+ if(bloqueado)return;
+ selecionada=tipo;
+ document.querySelectorAll('.cell').forEach(x=>x.classList.remove('selected'));
+ if(typeof tipo==='number')document.getElementById('n'+tipo).classList.add('selected');
+ let nomes={red:'Vermelho',black:'Preto',even:'Par',odd:'Ímpar',low:'1 a 18',high:'19 a 36'};
+ document.getElementById('escolha').textContent='Aposta selecionada: '+(typeof tipo==='number'?'Número '+tipo:nomes[tipo]);
+}
+function apostar(){
+ if(bloqueado)return;
+ let v=Number(document.getElementById('valor').value);
+ if(selecionada===null){alert('Escolha uma aposta primeiro.');return}
+ if(!Number.isFinite(v)||v<=0||!Number.isInteger(v)){alert('Digite um valor válido.');return}
+ if(v>saldo){alert('Saldo fictício insuficiente.');return}
+ valorAposta=v;
+ saldo-=v;atualizar();
+ document.getElementById('resultado').textContent='Aposta fictícia confirmada!';
+ document.getElementById('girar').disabled=false;
+}
+function ganhou(n){
+ if(typeof selecionada==='number')return n===selecionada;
+ if(selecionada==='red')return vermelho.includes(n);
+ if(selecionada==='black')return n!==0&&!vermelho.includes(n);
+ if(selecionada==='even')return n!==0&&n%2===0;
+ if(selecionada==='odd')return n%2===1;
+ if(selecionada==='low')return n>=1&&n<=18;
+ if(selecionada==='high')return n>=19&&n<=36;
+ return false;
+}
+function girar(){
+ if(bloqueado||!valorAposta){alert('Confirme uma aposta antes de girar.');return}
+ bloqueado=true;
+ document.getElementById('girar').disabled=true;
+ document.getElementById('resultado').textContent='A roleta está girando...';
+ let n=Math.floor(Math.random()*37);
+ let indice=ordem.indexOf(n);
+ let angulo=(360/37)*(indice+.5);
+ rotacao+=1440+(360-angulo);
+ canvas.style.transform=`rotate(${rotacao}deg)`;
+ setTimeout(()=>{
+  let venceu=ganhou(n);
+  let premio=0;
+  if(venceu){
+   premio=typeof selecionada==='number'?valorAposta*36:valorAposta*2;
+   saldo+=premio;
+  }
+  atualizar();
+  document.getElementById('resultado').textContent=venceu?
+   `🎉 Saiu ${n}! Você ganhou ${premio.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} fictícios!`:
+   `Saiu ${n}. Não foi dessa vez!`;
+  historico.unshift(n);historico=historico.slice(0,10);
+  mostrarHistorico();
+  selecionada=null;valorAposta=0;bloqueado=false;
+  document.getElementById('escolha').textContent='Escolha uma nova aposta';
+  document.querySelectorAll('.cell').forEach(x=>x.classList.remove('selected'));
+  document.getElementById('girar').disabled=false;
+ },4100);
+}
+function mostrarHistorico(){
+ let h=document.getElementById('historico');h.innerHTML='';
+ historico.forEach(n=>{
+  let b=document.createElement('div');b.className='ball '+cor(n);
+  b.textContent=n;h.appendChild(b);
+ });
+}
+function reiniciar(){
+ if(bloqueado)return;
+ saldo=50;selecionada=null;valorAposta=0;historico=[];
+ atualizar();mostrarHistorico();
+ document.getElementById('resultado').textContent='Saldo fictício reiniciado!';
+ document.getElementById('escolha').textContent='Escolha uma aposta';
+ document.querySelectorAll('.cell').forEach(x=>x.classList.remove('selected'));
+}
+desenhar();criarNumeros();atualizar();
+</script>
+</body>
+</html>
